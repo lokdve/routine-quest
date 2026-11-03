@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>루틴 퀘스트</title>
+<style>
+:root{--bg:#f6f5f2;--card:#fff;--text:#1d1d1f;--muted:#6b6b70;--line:#e4e2dc;--accent:#3b6cf6;--good:#1f9d55;--bad:#d64545;--warn:#c9821b}
+@media (prefers-color-scheme:dark){:root{--bg:#141416;--card:#1f1f23;--text:#f2f2f4;--muted:#9a9aa2;--line:#2e2e34;--accent:#6e93ff;--good:#3ccf7a;--bad:#ff6b6b;--warn:#f0b04a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;line-height:1.45;-webkit-tap-highlight-color:transparent}
+main{max-width:520px;margin:0 auto;padding:calc(16px + env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom))}
+header{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:16px}
+h1{font-size:20px;margin:0}
+h2{font-size:26px;margin:4px 0 8px}
+h3{font-size:17px;margin:0 0 6px}
+.pill{font-weight:700;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 12px;color:var(--text)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px}
+.muted{color:var(--muted);font-size:14px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grow{flex:1;min-width:0}
+button,.btn{font:inherit;border:0;border-radius:12px;padding:12px 16px;background:var(--accent);color:#fff;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none}
+button:disabled{opacity:.4}
+button.ghost,.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+button.small{padding:6px 10px;font-size:14px;border-radius:10px}
+button.danger{color:var(--bad)}
+.big{width:100%;padding:20px;font-size:20px;border-radius:16px;margin-top:8px}
+input,select{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;min-width:0}
+input[type=number]{width:80px}
+label.field{display:block;font-size:14px;color:var(--muted)}
+label.field input{display:block;width:100%;margin-top:4px}
+.clock{font-size:72px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-2px;text-align:center;margin:8px 0}
+.clock.over{color:var(--bad)}
+.center{text-align:center}
+.bars{display:flex;gap:4px;margin-bottom:12px}
+.bars i{flex:1;height:6px;border-radius:3px;background:var(--line)}
+.bars i.ok{background:var(--good)}.bars i.ng{background:var(--bad)}.bars i.cur{background:var(--accent)}
+.flash{background:var(--card);border:1px solid var(--good);color:var(--good);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-weight:600}
+.flash.ng{border-color:var(--bad);color:var(--bad)}
+.banner{background:var(--bad);color:#fff;border-radius:12px;padding:12px;margin-bottom:12px}
+.banner button{background:#fff;color:var(--bad)}
+.thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.thumbs div{position:relative}
+.thumbs img{width:64px;height:64px;border-radius:8px;object-fit:cover;display:block}
+.thumbs button{position:absolute;top:-6px;right:-6px;padding:0;width:22px;height:22px;border-radius:50%;font-size:12px;background:var(--bad)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.res{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)}
+.res:last-child{border:0}
+.big-num{font-size:48px;font-weight:800;text-align:center}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
+#toast.on{opacity:1}
+ol.help{padding-left:20px;margin:6px 0}ol.help li{margin-bottom:6px}
+code{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:1px 5px;font-size:13px;word-break:break-all}
+details summary{cursor:pointer;font-weight:600}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<div id="toast"></div>
+<script>
+const KEY = 'routineQuest.v1';
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Math.random().toString(36).slice(2, 9);
+const pad = n => String(n).padStart(2, '0');
+const APP_URL = location.origin + location.pathname;
+
+function defaults() {
+  const T = (name, min) => ({ id: uid(), name, type: 'timer', min });
+  return {
+    points: 0, passUntil: 0, threshold: 0.8, shortcut: 'SNS허용', useShortcut: false,
+    refs: {}, run: null, log: [],
+    routines: [
+      { id: 'evening', name: '저녁 루틴', steps: [T('가방 정리', 5), T('샤워', 20), T('바디로션', 5), T('옷 입기', 2), T('머리 말리기', 8)] },
+      { id: 'morning', name: '아침 루틴', steps: [
+        { id: uid(), name: '세면대 찍기', type: 'photo', min: 3 },
+        T('세수/양치', 5), T('화장', 7), T('옷 입기', 5),
+        { id: uid(), name: '현관문 찍기', type: 'photo', deadline: '08:50' }] }
+    ]
+  };
+}
+
+function load() {
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.routines) return s; } catch (e) {}
+  return defaults();
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('저장 실패 — 저장 공간을 확인하세요'); }
+}
+
+let S = load();
+let V = { name: 'home' };
+let BLOCKED = false;
+
+const routine = id => S.routines.find(r => r.id === id);
+const curStep = () => routine(S.run.routineId).steps[S.run.idx];
+
+// ---------- time ----------
+function todayAt(hhmm, ref) { const d = new Date(ref); const [h, m] = hhmm.split(':').map(Number); d.setHours(h, m, 0, 0); return +d; }
+function dueTime(st) { return st.deadline ? todayAt(st.deadline, S.run.stepStart) : S.run.stepStart + st.min * 60000; }
+function fmtDur(ms) {
+  const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+  return h ? `${h}:${pad(m)}:${pad(ss)}` : `${m}:${pad(ss)}`;
+}
+function fmtClock(t) { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function fmtStamp(t) { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
+
+// ---------- sound & screen ----------
+let AC;
+function ac() {
+  try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); } catch (e) {}
+  return AC;
+}
+function tone(freqs) {
+  const a = ac(); if (!a) return;
+  let t = a.currentTime;
+  for (const f of freqs) {
+    const o = a.createOscillator(), g = a.createGain();
+    o.frequency.value = f; o.connect(g); g.connect(a.destination);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.3, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+    o.start(t); o.stop(t + 0.3); t += 0.18;
+  }
+}
+const chime = ok => tone(ok ? [660, 880, 1100] : [400, 300]);
+const alarm = () => tone([880, 660, 880, 660, 880, 660]);
+document.addEventListener('pointerdown', ac);
+
+let WL;
+async function wake() { try { WL = await navigator.wakeLock?.request('screen'); } catch (e) {} }
+function releaseWake() { try { WL?.release(); } catch (e) {} WL = null; }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.run) wake(); });
+
+let toastTimer;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 2200); }
+
+// ---------- photo recognition ----------
+let modelP;
+function loadScript(src) {
+  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('인식 모델을 불러오지 못했어요')); document.head.appendChild(s); });
+}
+function getModel() {
+  if (!modelP) modelP = (async () => {
+    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js');
+    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js');
+    return mobilenet.load({ version: 2, alpha: 1.0 });
+  })().catch(e => { modelP = null; throw e; });
+  return modelP;
+}
+function fileToImg(file) {
+  return new Promise((res, rej) => { const u = URL.createObjectURL(file), i = new Image(); i.onload = () => { URL.revokeObjectURL(u); res(i); }; i.onerror = () => rej(new Error('사진을 열 수 없어요')); i.src = u; });
+}
+// 사진 → 정규화된 특징 벡터 (같은 장소끼리는 코사인 유사도가 높게 나옴)
+async function embedFile(file) {
+  const [model, img] = await Promise.all([getModel(), fileToImg(file)]);
+  const c = document.createElement('canvas'); c.width = c.height = 224;
+  const s = Math.min(img.width, img.height);
+  c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 224, 224);
+  const t = model.infer(c, true); const v = Array.from(await t.data()); t.dispose();
+  let n = 0; for (const x of v) n += x * x; n = Math.sqrt(n) || 1;
+  const tc = document.createElement('canvas'); tc.width = tc.height = 96; tc.getContext('2d').drawImage(c, 0, 0, 96, 96);
+  return { emb: v.map(x => Math.round(x / n * 1e4) / 1e4), thumb: tc.toDataURL('image/jpeg', 0.6) };
+}
+function cos(a, b) { let d = 0; for (let i = 0; i < a.length; i++) d += a[i] * b[i]; return d; }
+
+// ---------- routine engine ----------
+function startRoutine(id) {
+  S.run = { routineId: id, idx: 0, stepStart: Date.now(), results: [], streak: 0, earned: 0, beeped: false };
+  V = { name: 'run' };
+  save(); wake(); render();
+}
+
+// ok 생략 시 마감 전에 끝냈는지로 판정
+function finishStep(ok) {
+  const r = S.run, st = curStep(), now = Date.now(), due = dueTime(st);
+  if (ok === undefined) ok = now <= due;
+  let saved = 0, bonus = 0;
+  if (ok) {
+    if (!st.deadline) saved = Math.floor((due - now) / 60000);
+    r.streak++;
+    if (r.streak % 3 === 0) bonus = 5;
+  } else r.streak = 0;
+  r.earned += saved + bonus; S.points += saved + bonus;
+  r.results.push({ name: st.name, ok, saved, bonus });
+
+  let msg = ok ? (saved ? `+${saved}점 (${saved}분 단축)` : '성공!') : '시간 초과 — 연속 기록이 끊겼어요';
+  if (bonus) msg += ' · 🔥 3연속 보너스 +5';
+  r.idx++; r.stepStart = now; r.beeped = false;
+
+  const rt = routine(r.routineId);
+  if (r.idx >= rt.steps.length) {
+    const perfect = r.results.every(x => x.ok);
+    if (perfect) { S.points += 10; r.earned += 10; }
+    S.log.unshift({ t: now, name: rt.name, earned: r.earned, perfect });
+    S.log = S.log.slice(0, 30);
+    V = { name: 'done', sum: { name: rt.name, results: r.results, earned: r.earned, perfect } };
+    S.run = null; releaseWake();
+  } else V = { name: 'run', flash: msg, flashOk: ok };
+  save(); render(); chime(ok);
+}
+
+async function onMissionPhoto(file) {
+  const st = curStep();
+  V.photoMsg = '사진 확인 중… (처음 한 번은 모델 로딩에 10초쯤 걸려요)'; V.photoErr = false; render();
+  try {
+    const { emb, thumb } = await embedFile(file);
+    const refs = S.refs[st.id] || [];
+    if (!refs.length) { S.refs[st.id] = [{ emb, thumb }]; toast('이 사진을 기준 사진으로 등록했어요'); finishStep(); return; }
+    const sim = Math.max(...refs.map(x => cos(x.emb, emb)));
+    if (sim >= S.threshold) finishStep();
+    else { V.photoMsg = `다른 곳 같아요 (유사도 ${sim.toFixed(2)} / 기준 ${S.threshold.toFixed(2)}). 다시 찍어주세요.`; render(); }
+  } catch (e) {
+    V.photoMsg = e.message + ' — 인터넷 연결을 확인하세요.'; V.photoErr = true; render();
+  }
+}
+
+function buy(m) {
+  if (S.points < m) return;
+  S.points -= m;
+  S.passUntil = Math.max(Date.now(), S.passUntil) + m * 60000;
+  save(); render();
+  toast(`${fmtClock(S.passUntil)}까지 SNS 허용`);
+  if (S.useShortcut)
+    location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(S.shortcut)}&input=text&text=${encodeURIComponent(fmtStamp(S.passUntil))}`;
+}
+
+// ---------- views ----------
+function header() {
+  const back = V.name !== 'home' && V.name !== 'run' ? '<button class="ghost small" data-a="home">← 홈</button>' : '<h1>루틴 퀘스트</h1>';
+  return `<header>${back}<button class="pill" data-a="wallet">⭐ ${S.points}점</button></header>` +
+    (BLOCKED ? `<div class="banner"><b>SNS 이용권이 없어요.</b><br>루틴을 끝내고 점수로 이용권을 사세요.<div class="row" style="margin-top:8px"><button class="small" data-a="wallet">지갑 열기</button><button class="small" data-a="unblock">닫기</button></div></div>` : '');
+}
+
+function homeView() {
+  const pass = S.passUntil > Date.now() ? `<div class="card"><b>📱 SNS 이용권</b> ${fmtClock(S.passUntil)}까지</div>` : '';
+  const cont = S.run ? `<div class="card"><b>진행 중: ${esc(routine(S.run.routineId).name)}</b><button class="big" data-a="resume">이어하기</button></div>` : '';
+  const cards = S.routines.map(rt => {
+    const mins = rt.steps.reduce((a, s) => a + (s.min || 0), 0);
+    return `<div class="card"><h3>${esc(rt.name)}</h3>
+      <div class="muted">${rt.steps.map(s => esc(s.name)).join(' → ')}</div>
+      <div class="muted">${rt.steps.length}단계 · ${mins}분${rt.steps.some(s => s.deadline) ? ' + 마감 미션' : ''}</div>
+      <div class="row" style="margin-top:10px"><button class="grow" data-a="start" data-id="${rt.id}">▶ 시작</button><button class="ghost" data-a="edit" data-id="${rt.id}">편집</button></div></div>`;
+  }).join('');
+  const log = S.log.length ? `<div class="card"><h3>최근 기록</h3>${S.log.slice(0, 5).map(l => {
+    const d = new Date(l.t);
+    return `<div class="res"><span>${d.getMonth() + 1}/${d.getDate()} ${esc(l.name)}${l.perfect ? ' 🏆' : ''}</span><b>+${l.earned}</b></div>`;
+  }).join('')}</div>` : '';
+  return header() + cont + pass + cards +
+    `<div class="row"><button class="ghost grow" data-a="newroutine">+ 새 루틴</button><button class="ghost" data-a="help">아이폰 연동</button><button class="ghost" data-a="settings">설정</button></div><div style="height:12px"></div>` + log;
+}
+
+function runView() {
+  const rt = routine(S.run.routineId), st = curStep(), r = S.run;
+  const bars = rt.steps.map((_, i) => `<i class="${i < r.idx ? (r.results[i].ok ? 'ok' : 'ng') : i === r.idx ? 'cur' : ''}"></i>`).join('');
+  const hasRefs = (S.refs[st.id] || []).length > 0;
+  let sub;
+  if (st.deadline) sub = `🎈 자유시간 — <b>${st.deadline}</b>까지 ${st.type === 'photo' ? '사진을 찍으면' : '완료하면'} 성공`;
+  else sub = `${st.min}분 안에 끝내면 성공 · 남은 1분당 1점`;
+  if (st.type === 'photo' && !hasRefs) sub += '<br>아직 기준 사진이 없어요. 첫 사진이 기준으로 등록돼요.';
+  const action = st.type === 'photo'
+    ? `<label class="btn big">📷 사진 찍기<input type="file" accept="image/*" capture="environment" data-f="mission" hidden></label>
+       ${V.photoMsg ? `<p class="center muted">${esc(V.photoMsg)}</p>` : ''}
+       ${V.photoErr ? '<button class="ghost small" data-a="done">인식 없이 통과</button>' : ''}`
+    : '<button class="big" data-a="done">완료!</button>';
+  return header() +
+    (V.flash ? `<div class="flash ${V.flashOk ? '' : 'ng'}">${esc(V.flash)}</div>` : '') +
+    `<div class="bars">${bars}</div>
+    <div class="card center">
+      <div class="muted">${esc(rt.name)} · ${r.idx + 1} / ${rt.steps.length}</div>
+      <h2>${esc(st.name)}</h2>
+      <div id="clock" class="clock">--:--</div>
+      <div class="muted">${sub}</div>
+      ${action}
+    </div>
+    <div class="row muted" style="justify-content:space-between;margin-bottom:12px"><span>🔥 연속 ${r.streak}</span><span>이번 루틴 +${r.earned}점</span></div>
+    <div class="row"><button class="ghost small" data-a="skip">이 단계 포기</button><button class="ghost small danger" data-a="abort">루틴 중단</button><button class="ghost small" data-a="home">홈</button></div>`;
+}
+
+function doneView() {
+  const s = V.sum;
+  return header() + `<div class="card center"><div class="muted">${esc(s.name)} 끝!</div>
+    <div class="big-num">+${s.earned}점</div>${s.perfect ? '<div class="flash">🏆 퍼펙트 클리어 보너스 +10</div>' : ''}</div>
+    <div class="card">${s.results.map(x => `<div class="res"><span>${x.ok ? '✅' : '❌'} ${esc(x.name)}</span><span>${x.ok ? `+${x.saved}${x.bonus ? ` 🔥+${x.bonus}` : ''}` : '0'}</span></div>`).join('')}</div>
+    <div class="row"><button class="grow" data-a="home">홈으로</button><button class="ghost" data-a="wallet">이용권 사기</button></div>`;
+}
+
+function walletView() {
+  const active = S.passUntil > Date.now();
+  return header() + `<div class="card center"><div class="muted">보유 점수</div><div class="big-num">⭐ ${S.points}</div>
+    <div class="muted">${active ? `SNS 이용권: <b>${fmtClock(S.passUntil)}</b>까지` : 'SNS 이용권 없음'}</div></div>
+    <div class="card"><h3>SNS 이용권 사기 (1점 = 1분)</h3><div class="grid">
+    ${[5, 10, 15, 20, 30, 60].map(m => `<button data-a="buy" data-m="${m}" ${S.points < m ? 'disabled' : ''}>${m}분</button>`).join('')}</div>
+    <p class="muted">${S.useShortcut ? '구매하면 단축어가 실행돼서 잠금이 풀려요.' : '단축어 연동이 꺼져 있어요. 설정에서 켜면 실제로 인스타·유튜브 잠금과 연결돼요.'} 이미 이용권이 있으면 시간이 연장돼요.</p></div>`;
+}
+
+function editView() {
+  const rt = routine(V.rid);
+  const steps = rt.steps.map((st, i) => {
+    const refs = S.refs[st.id] || [];
+    return `<div class="card" data-i="${i}">
+      <div class="row"><input class="grow" data-f="name" value="${esc(st.name)}">
+        <button class="ghost small" data-a="up">↑</button><button class="ghost small" data-a="down">↓</button><button class="ghost small danger" data-a="del">✕</button></div>
+      <div class="row" style="margin-top:8px">
+        <select data-f="type"><option value="timer" ${st.type === 'timer' ? 'selected' : ''}>완료 버튼</option><option value="photo" ${st.type === 'photo' ? 'selected' : ''}>사진 미션</option></select>
+        <select data-f="mode"><option value="min" ${st.deadline ? '' : 'selected'}>제한 시간</option><option value="deadline" ${st.deadline ? 'selected' : ''}>마감 시각</option></select>
+        ${st.deadline ? `<input type="time" data-f="deadline" value="${st.deadline}">` : `<input type="number" min="1" data-f="min" value="${st.min}"> 분`}
+      </div>
+      ${st.type === 'photo' ? `<div style="margin-top:10px"><div class="muted">기준 사진 ${refs.length}장 · 같은 장소를 2~3장 각도를 바꿔 등록하면 인식이 잘 돼요</div>
+        <div class="thumbs">${refs.map((x, j) => `<div><img src="${x.thumb}" alt=""><button data-a="delref" data-r="${j}">✕</button></div>`).join('')}</div>
+        <label class="btn ghost" style="margin-top:8px">＋ 기준 사진 추가<input type="file" accept="image/*" capture="environment" data-f="addref" hidden></label></div>` : ''}
+    </div>`;
+  }).join('');
+  const link = `${APP_URL}?start=${rt.id}`;
+  return header() + `<div class="card"><label class="field">루틴 이름<input data-f="rname" value="${esc(rt.name)}"></label>
+    <p class="muted">바로 시작 링크 (단축어 자동화용)<br><code>${esc(link)}</code> <button class="ghost small" data-a="copy" data-t="${esc(link)}">복사</button></p></div>
+    ${steps}
+    <div class="row"><button class="ghost grow" data-a="addstep">+ 단계 추가</button></div><div style="height:12px"></div>
+    <div class="row"><button class="grow" data-a="home">완료</button><button class="ghost danger" data-a="delroutine">루틴 삭제</button></div>`;
+}
+
+function settingsView() {
+  return header() + `<div class="card"><h3>사진 인식 기준</h3>
+    <div class="row"><input type="range" class="grow" min="0.5" max="0.95" step="0.01" value="${S.threshold}" data-f="threshold"><b>${S.threshold.toFixed(2)}</b></div>
+    <p class="muted">높을수록 엄격해요. 미션에서 "유사도" 숫자를 보고 조절하세요.</p></div>
+    <div class="card"><h3>단축어 연동</h3>
+    <label class="row"><input type="checkbox" data-f="useShortcut" ${S.useShortcut ? 'checked' : ''}> 이용권 구매 시 단축어 실행</label>
+    <label class="field" style="margin-top:8px">단축어 이름<input data-f="shortcut" value="${esc(S.shortcut)}"></label>
+    <p class="muted">설정 방법은 홈 → 아이폰 연동을 보세요.</p></div>
+    <div class="card"><h3>데이터</h3><div class="row"><button class="ghost small" data-a="export">백업 복사</button><button class="ghost small" data-a="import">백업 붙여넣기</button><button class="ghost small danger" data-a="reset">전체 초기화</button></div>
+    <p class="muted">데이터는 이 폰의 사파리에만 저장돼요.</p></div>`;
+}
+
+function helpView() {
+  return header() + `<div class="card"><h3>먼저 알아둘 것</h3><p class="muted">이 앱은 <b>사파리</b>에서 쓰세요. 단축어가 여는 링크도 사파리로 열려서, 같은 곳에 점수가 저장돼요. 홈 화면 아이콘이 필요하면 공유 → "홈 화면에 추가"를 쓰면 돼요.</p></div>
+    <div class="card"><h3>⏰ 알람을 끄면 아침 루틴 시작</h3><ol class="help">
+      <li>단축어 앱 → <b>자동화</b> → ＋ → <b>알람</b> → "중단될 때" 선택, 기상 알람 고르기 → <b>즉시 실행</b></li>
+      <li>동작: <b>URL 열기</b> → <code>${esc(APP_URL)}?start=morning</code></li></ol>
+      <p class="muted">알람은 아이폰 기본 시계 앱으로 맞추세요. 웹앱은 화면이 꺼져 있으면 알람을 울릴 수 없어요.</p></div>
+    <div class="card"><h3>🔒 인스타·유튜브 잠금</h3><ol class="help">
+      <li><b>단축어 "SNS허용"</b> 만들기: <b>텍스트 파일 저장</b>(파일 저장) — 입력: 단축어 입력, 경로 <code>sns_pass.txt</code>, "덮어쓰기" 켜기, "저장 위치 묻기" 끄기. 상단 설정에서 "입력 받기: 텍스트"로 두기.</li>
+      <li><b>단축어 "SNS체크"</b> 만들기: <b>파일 가져오기</b> <code>sns_pass.txt</code> ("파일이 없으면 오류" 끄기) → <b>입력에서 날짜 가져오기</b> → <b>만약</b> 날짜가 <b>현재 날짜 이후</b>이면 아무것도 안 함, <b>그렇지 않으면</b> → URL 열기 <code>${esc(APP_URL)}?blocked=1</code></li>
+      <li><b>자동화</b> → ＋ → <b>앱</b> → 인스타그램·유튜브 선택 → "열릴 때" → 즉시 실행 → "SNS체크" 실행</li>
+      <li>이 앱 설정에서 <b>단축어 연동</b> 켜기</li></ol>
+      <p class="muted">이용권을 사면 앱이 "SNS허용"에 만료 시각을 넘겨요. 인스타를 열 때마다 "SNS체크"가 그 시각을 확인하고, 지났으면 여기로 돌려보내요.</p></div>`;
+}
+
+function render() {
+  if (S.run && !routine(S.run.routineId)) S.run = null;
+  if (V.name === 'run' && !S.run) V = { name: 'home' };
+  const views = { home: homeView, run: runView, done: doneView, wallet: walletView, edit: editView, settings: settingsView, help: helpView };
+  $('#app').innerHTML = views[V.name]();
+  tick();
+}
+
+function tick() {
+  if (V.name !== 'run' || !S.run) return;
+  const el = $('#clock'); if (!el) return;
+  const left = dueTime(curStep()) - Date.now();
+  el.textContent = left >= 0 ? fmtDur(left) : '+' + fmtDur(-left);
+  el.classList.toggle('over', left < 0);
+  if (left < 0 && !S.run.beeped) { S.run.beeped = true; save(); alarm(); }
+}
+setInterval(tick, 250);
+
+// ---------- events ----------
+const go = name => { V = { name }; render(); scrollTo(0, 0); };
+const A = {
+  home: () => go('home'), wallet: () => go('wallet'), settings: () => go('settings'), help: () => go('help'),
+  resume: () => { V = { name: 'run' }; wake(); render(); },
+  start: b => { if (!S.run || confirm('진행 중인 루틴을 버리고 새로 시작할까요?')) startRoutine(b.dataset.id); },
+  edit: b => { V = { name: 'edit', rid: b.dataset.id }; render(); scrollTo(0, 0); },
+  done: () => finishStep(),
+  skip: () => { if (confirm('이 단계를 실패로 처리할까요? 연속 기록이 끊겨요.')) finishStep(false); },
+  abort: () => { if (confirm('루틴을 중단할까요? 지금까지 얻은 점수는 유지돼요.')) { S.run = null; releaseWake(); save(); go('home'); } },
+  buy: b => buy(+b.dataset.m),
+  unblock: () => { BLOCKED = false; render(); },
+  copy: b => navigator.clipboard?.writeText(b.dataset.t).then(() => toast('복사했어요')),
+  newroutine: () => { const rt = { id: uid(), name: '새 루틴', steps: [{ id: uid(), name: '첫 단계', type: 'timer', min: 5 }] }; S.routines.push(rt); save(); V = { name: 'edit', rid: rt.id }; render(); },
+  addstep: () => { routine(V.rid).steps.push({ id: uid(), name: '새 단계', type: 'timer', min: 5 }); save(); render(); },
+  up: (b, i) => { const s = routine(V.rid).steps; if (i > 0) [s[i - 1], s[i]] = [s[i], s[i - 1]]; save(); render(); },
+  down: (b, i) => { const s = routine(V.rid).steps; if (i < s.length - 1) [s[i + 1], s[i]] = [s[i], s[i + 1]]; save(); render(); },
+  del: (b, i) => { const s = routine(V.rid).steps; if (s.length > 1 && confirm(`"${s[i].name}" 단계를 삭제할까요?`)) { delete S.refs[s[i].id]; s.splice(i, 1); save(); render(); } },
+  delref: (b, i) => { const st = routine(V.rid).steps[i]; S.refs[st.id].splice(+b.dataset.r, 1); save(); render(); },
+  delroutine: () => { if (S.routines.length > 1 && confirm('이 루틴을 삭제할까요?')) { const rt = routine(V.rid); rt.steps.forEach(s => delete S.refs[s.id]); S.routines = S.routines.filter(r => r !== rt); save(); go('home'); } },
+  export: () => navigator.clipboard?.writeText(JSON.stringify(S)).then(() => toast('백업을 클립보드에 복사했어요 — 메모 앱에 붙여넣어 두세요')),
+  import: () => { const t = prompt('백업 내용을 붙여넣으세요'); if (!t) return; try { const s = JSON.parse(t); if (!s.routines) throw 0; S = s; save(); go('home'); toast('복원했어요'); } catch (e) { toast('올바른 백업이 아니에요'); } },
+  reset: () => { if (confirm('점수와 루틴, 기준 사진을 모두 지울까요?')) { S = defaults(); save(); go('home'); } }
+};
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-a]'); if (!b) return;
+  const i = b.closest('[data-i]') ? +b.closest('[data-i]').dataset.i : undefined;
+  A[b.dataset.a]?.(b, i);
+});
+
+document.addEventListener('change', async e => {
+  const el = e.target, f = el.dataset.f; if (!f) return;
+  if (f === 'mission') { if (el.files[0]) onMissionPhoto(el.files[0]); return; }
+  if (V.name === 'settings') {
+    if (f === 'threshold') S.threshold = +el.value;
+    if (f === 'useShortcut') S.useShortcut = el.checked;
+    if (f === 'shortcut') S.shortcut = el.value.trim() || 'SNS허용';
+    save(); render(); return;
+  }
+  if (V.name !== 'edit') return;
+  const rt = routine(V.rid);
+  if (f === 'rname') { rt.name = el.value.trim() || '루틴'; save(); return; }
+  const st = rt.steps[+el.closest('[data-i]').dataset.i];
+  if (f === 'name') st.name = el.value.trim() || '단계';
+  if (f === 'type') st.type = el.value;
+  if (f === 'mode') { if (el.value === 'deadline') { delete st.min; st.deadline = '08:50'; } else { delete st.deadline; st.min = 5; } }
+  if (f === 'min') st.min = Math.max(1, parseInt(el.value) || 1);
+  if (f === 'deadline') st.deadline = el.value || '08:50';
+  if (f === 'addref' && el.files[0]) {
+    toast('사진 분석 중…');
+    try { (S.refs[st.id] = S.refs[st.id] || []).push(await embedFile(el.files[0])); toast('기준 사진을 등록했어요'); }
+    catch (err) { toast(err.message); }
+  }
+  save(); render();
+});
+
+// ---------- boot ----------
+(function boot() {
+  if (S.run && Date.now() - S.run.stepStart > 6 * 3600000) S.run = null; // 오래 방치된 루틴은 정리
+  const q = new URLSearchParams(location.search);
+  if (q.has('blocked')) BLOCKED = S.passUntil <= Date.now();
+  const start = q.get('start');
+  if (q.toString()) history.replaceState(null, '', location.pathname);
+  if (start && routine(start) && !(S.run && S.run.routineId === start)) { startRoutine(start); return; }
+  if (S.run) { V = { name: 'run' }; wake(); }
+  render();
+})();
+</script>
+</body>
+</html>
